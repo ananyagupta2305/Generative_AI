@@ -29,12 +29,19 @@ simple conversational interface using an LLM (LLaMA 8B via the Groq API) for nat
 ##### Prerequisites
 Make sure you have the following installed:
 <ul> 
-  Python 3.8+ (preferably in a virtual environment)
+  Python 3.8+ (preferably in a virtual environment)<br>
   pip (Python package manager)
 </ul>
 
 
 # **Running the Application**
 Start the Streamlit app: <br>
-    streamlit run app.py <br>
+'''bash
+streamlit run app.py <br>
 This will launch the Streamlit interface at http://localhost:8501.
+
+# Install the dependencies using:
+
+```bash
+pip install -r requirements.txt
+
