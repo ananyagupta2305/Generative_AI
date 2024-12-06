@@ -8,7 +8,6 @@ simple conversational interface using an LLM (LLaMA 8B via the Groq API) for nat
 1. RAG (Multi-file Interaction): Retrieve relevant content from multiple uploaded files to provide context-based responses.<br>
 2. LLM Chat: Enable users to have a direct conversation with an LLM (LLaMA 8B) for simple queries and interactions.<br><br>
 <hr>
-<br>
 
 ### **Features**
 1. File Upload & Extraction: Upload and process files (PDF, DOCX, TXT, MP3, MP4).
@@ -18,4 +17,24 @@ simple conversational interface using an LLM (LLaMA 8B via the Groq API) for nat
 5. Groq API Integration: Uses LLaMA 8B model via the Groq API for fast, efficient inference.
 6. Streamlit UI: A user-friendly interface for uploading files and interacting with the system.
 
+# **Technologies Used**
+1. Streamlit: Framework for building the frontend user interface.
+2. LLaMA 8B: Large Language Model via Groq API for handling complex conversational queries.
+3. PyPDF2: For text extraction from PDF files.
+4. python-docx: For reading DOCX files.
+5. moviepy: For transcribing MP4 video files.
+6. FAISS: For document retrieval based on file content.
 
+# **Getting Started**
+##### Prerequisites
+Make sure you have the following installed:
+<ul> 
+  Python 3.8+ (preferably in a virtual environment)
+  pip (Python package manager)
+</ul>
+
+
+# **Running the Application**
+Start the Streamlit app: <br>
+    streamlit run app.py <br>
+This will launch the Streamlit interface at http://localhost:8501.
