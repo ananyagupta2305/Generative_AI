@@ -26,7 +26,7 @@ simple conversational interface using an LLM (LLaMA 8B via the Groq API) for nat
 6. FAISS: For document retrieval based on file content.
 
 # **Getting Started**
-##### Prerequisites
+#### Prerequisites
 Make sure you have the following installed:
 <ul> 
   - Python 3.8+ (preferably in a virtual environment)<br>
@@ -37,7 +37,7 @@ Make sure you have the following installed:
 # **Running the Application**
 Start the Streamlit app: <br>
 ```bash
-streamlit run app.py <br>
+streamlit run app.py
 ```
 This will launch the Streamlit interface at http://localhost:8501.
 
