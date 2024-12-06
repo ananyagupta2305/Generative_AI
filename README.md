@@ -38,9 +38,10 @@ Make sure you have the following installed:
 Start the Streamlit app: <br>
 ```bash
 streamlit run app.py <br>
+```
 This will launch the Streamlit interface at http://localhost:8501.
 
 # Install the dependencies using:
 ```bash
 pip install -r requirements.txt
-
+```
