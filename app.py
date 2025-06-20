@@ -1,10 +1,11 @@
+
+
 import os
 import yt_dlp
 import streamlit as st
 import requests
 import numpy as np
 import speech_recognition as sr
-import moviepy.editor as mp
 from bs4 import BeautifulSoup
 from utils import document_processing
 from utils.document_processing import extract_text_from_file
@@ -12,14 +13,21 @@ from utils.embeddings import embed_text
 from utils.retrieval import retrieve_relevant_content
 from models.llm_integration import get_llm_response
 
+# Initialize session state for persisting data between reruns
+if 'response' not in st.session_state:
+    st.session_state.response = None
+
 # Set up the Streamlit app
 st.set_page_config(page_title="Chat Assistant", page_icon="🤖", layout="wide")
-
+if 'show_reset_message' in st.session_state and st.session_state.show_reset_message:
+    st.success("✅ App has been reset successfully!")
+    # Remove the flag so the message doesn't show on subsequent reruns
+    del st.session_state.show_reset_message
 # Custom CSS for styling
 st.markdown("""
 <style>
     .main {
-        background-color: #f0f0f5;
+        background-color: #f5f7f9;
     }
     .sidebar .sidebar-content {
         background-color: #e8eaf6;
@@ -30,25 +38,43 @@ st.markdown("""
         color: white;
         border: None;
         border-radius: 5px;
+        padding: 0.5rem 1rem;
+        margin: 0.5rem 0;
     }
     .stButton>button:hover {
         background-color: #303f9f;
+    }
+    .reset-button>button {
+        background-color: #f44336;
+    }
+    .reset-button>button:hover {
+        background-color: #d32f2f;
     }
     .stTextInput {
         border-radius: 5px;
         border: 1px solid #3f51b5;
     }
-    .response-buttons {
-        display: flex;
-        align-items: center;
-        margin-top: 10px;
+    .response-box {
+        background-color: #f1f3f4;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+        border-left: 5px solid #3f51b5;
     }
-    .icon-button {
-        background-color: transparent;
-        border: none;
-        cursor: pointer;
-        font-size: 24px;
-        margin-right: 20px; /* Space between buttons */
+    .file-upload {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 10px;
+        margin: 10px 0;
+        text-align: center;
+    }
+    .file-upload:hover {
+        border-color: #3f51b5;
+    }
+    .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -56,9 +82,36 @@ st.markdown("""
 st.title("🤖 Chat Assistant")
 st.markdown("### Welcome to the AI Chat Assistant!")
 
+# Function to reset all inputs and results
+# Replace the reset_app function with this version:
+import time
+# Replace the reset_app function with this simpler version:
+
+def reset_app():
+    """Reset the app using Streamlit's native functionality"""
+    # Create a temporary flag to show success message after rerun
+    st.session_state.show_reset_message = True
+    
+    # List of keys to preserve (only navigation state)
+    preserve_keys = ['selected_mode', 'show_reset_message']
+    
+    # Delete all other session state keys
+    for key in list(st.session_state.keys()):
+        if key not in preserve_keys:
+            del st.session_state[key]
+    
+    # Force the app to rerun with the cleared state
+    st.rerun()
+    
+    
 # Sidebar for navigation
 st.sidebar.title("Navigation")
-selected_mode = st.sidebar.radio("Choose your mode:", ("RAG System", "Direct LLM Chat"))
+if 'selected_mode' not in st.session_state:
+    st.session_state.selected_mode = "RAG System"
+selected_mode = st.sidebar.radio("Choose your mode:", 
+                                ("RAG System", "Direct LLM Chat"), 
+                                index=0 if st.session_state.selected_mode == "RAG System" else 1)
+st.session_state.selected_mode = selected_mode
 
 # Function to extract text from a general URL
 def extract_text_from_url(url):
@@ -91,185 +144,170 @@ def transcribe_audio(file_path):
     except Exception as e:
         return f"Error in audio transcription: {e}"
 
-# Function to process video and extract audio for transcription
-def process_video(video_file):
-    try:
-        video = mp.VideoFileClip(video_file.name)
-        audio_path = "temp_audio.wav"
-        video.audio.write_audiofile(audio_path)
-        
-        # Transcribe the extracted audio
-        text = transcribe_audio(audio_path)
-        os.remove(audio_path)  # Clean up the temporary audio file
-        return text
-    except Exception as e:
-        return f"Error in video processing: {e}"
-
 # RAG System Tab
 if selected_mode == "RAG System":
-    st.header("🗂️ RAG System Chat")
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.header("🗂️ RAG System Chat")
+    with col2:
+        st.markdown("<div class='reset-button'>", unsafe_allow_html=True)
+        if st.button("🔄 Reset", key="rag_reset"):
+            reset_app()
+        st.markdown("</div>", unsafe_allow_html=True)
+
 
     # Select file type
     file_type = st.selectbox(
         "Select file type:",
-        options=["PDF", "Word (DOCX)", "TXT", "Audio (MP3, WAV)", "Video (MP4, AVI, MPEG4)", "URL"],
+        options=["PDF", "Word (DOCX)", "TXT", "Audio (MP3, WAV)", "URL"],
     )
 
     # Initialize variables
     uploaded_file = None
     url = ""
     user_query = ""
-    processing_choice = None  # For audio/video options
+    processing_choice = None  # For audio options
 
     # Show relevant input based on selected file type
     if file_type in ["PDF", "Word (DOCX)", "TXT"]:
-        uploaded_file = st.file_uploader("Upload your document:", type=["pdf", "docx", "txt"])
-        user_query = st.text_input("🔍 Enter your query:")
+        st.markdown("<div class='file-upload'>", unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("Upload your document:", type=["pdf", "docx", "txt"], key="rag_file")
+        st.markdown("</div>", unsafe_allow_html=True)
+        user_query = st.text_input("🔍 Enter your query:", key="rag_query")
 
     elif file_type == "URL":
-        url = st.text_input("🌐 Enter URL (YouTube or general website):")
-        user_query = st.text_input("🔍 Enter your query:")
+        url = st.text_input("🌐 Enter URL (YouTube or general website):", key="rag_url")
+        user_query = st.text_input("🔍 Enter your query:", key="url_query")
 
-    elif file_type in ["Audio (MP3, WAV)", "Video (MP4, AVI, MPEG4)"]:
-        uploaded_file = st.file_uploader("Upload your audio/video file:", type=["mp3", "wav", "mp4", "avi"])
+    elif file_type == "Audio (MP3, WAV)":
+        st.markdown("<div class='file-upload'>", unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("Upload your audio file:", type=["mp3", "wav"], key="rag_audio")
+        st.markdown("</div>", unsafe_allow_html=True)
         processing_choice = st.radio("Select processing option:", ["Transcription", "Query based on content"])
         if processing_choice == "Query based on content":
-            user_query = st.text_input("🔍 Enter your query:")
+            user_query = st.text_input("🔍 Enter your query:", key="audio_query")
 
     # Submit button with an icon
-    if st.button("🚀 Submit"):
-        texts = []
-        st.spinner("Processing...")  # Add a loading spinner
+    submit_btn = st.button("🚀 Submit", key="rag_submit")
+    
+    if submit_btn:
+        with st.spinner("Processing your request... This may take a moment."):
+            texts = []
 
-        # Document Processing
-        if uploaded_file:
-            if file_type in ["PDF", "Word (DOCX)", "TXT"]:
-                text = extract_text_from_file(uploaded_file)
-                if text:
-                    texts.append(text)
+            # Document Processing
+            if uploaded_file:
+                if file_type in ["PDF", "Word (DOCX)", "TXT"]:
+                    text = extract_text_from_file(uploaded_file)
+                    if text:
+                        texts.append(text)
+                        st.info(f"Successfully extracted {len(text.split())} words from document.")
+                    else:
+                        st.error("Failed to extract text from document.")
 
-            elif file_type == "Audio (MP3, WAV)":
-                text = transcribe_audio(uploaded_file)
-                if text:
-                    texts.append(text)
-                else:
-                    st.warning("⚠️ No text could be extracted from the uploaded audio.")
-
-            elif file_type == "Video (MP4, AVI, MPEG4)":
-                text = process_video(uploaded_file)
-                if text:
-                    texts.append(text)
-
-        # URL Processing
-        elif url:
-            if "youtube.com" in url or "youtu.be" in url:
-                youtube_text = extract_text_from_youtube(url)
-                texts.append(youtube_text + " " + user_query if user_query else youtube_text)
-            else:
-                webpage_text = extract_text_from_url(url)
-                texts.append(webpage_text + " " + user_query if user_query else webpage_text)
-
-        # Check if texts are extracted
-        if not texts:
-            st.warning("⚠️ No text could be extracted from the uploaded files or URL.")
-        else:
-            # Ensure user query is valid
-            if user_query:
-                user_query_embedding = embed_text([user_query])
-            else:
-                st.warning("⚠️ Please enter a valid query.")
-                user_query_embedding = None
-            
-            # If the user query is valid, process it
-            if user_query_embedding is not None:
-                # Limit the length of the combined text for LLM
-                combined_text = " ".join(texts)
-                if len(combined_text) > 3000:  # Adjust this limit if needed
-                    combined_text = combined_text[:3000] + "..."  # Truncate text
-                
-                embeddings = embed_text([combined_text])
-                relevant_content_indices_raw = retrieve_relevant_content(embeddings, user_query_embedding)
-
-                # Flatten array if needed and convert to list of integers
-                if isinstance(relevant_content_indices_raw, np.ndarray):
-                    relevant_content_indices = [int(i) for i in relevant_content_indices_raw.ravel()]
-                elif isinstance(relevant_content_indices_raw, list):
-                    relevant_content_indices = [int(i) for sublist in relevant_content_indices_raw for i in (sublist if isinstance(sublist, list) else [sublist])]
-                else:
-                    relevant_content_indices = [int(relevant_content_indices_raw)]
-                
-                # Retrieve relevant texts
-                relevant_texts = [texts[i] for i in relevant_content_indices]
-
-                # Ensure there's relevant text to query
-                if relevant_texts:
-                    response = get_llm_response(" ".join(relevant_texts))
-                    st.success("**Response:** " + response)
-
-                    # Add buttons for audio and copy functionalities
-                    st.markdown("""
-                        <div class="response-buttons">
-                            <button class="icon-button" id="playAudio">🔊</button>
-                            <button class="icon-button" id="copyToClipboard">📋</button>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                    # Adding JS for audio and copy functionality
-                    st.markdown(f"""
-                        <script>
-                        document.getElementById('playAudio').onclick = function() {{
-                            const response = `{response}`;
-                            const utterance = new SpeechSynthesisUtterance(response);
-                            speechSynthesis.speak(utterance);
-                        }};
+                elif file_type == "Audio (MP3, WAV)":
+                    try:
+                        # Save uploaded file to disk temporarily
+                        with open("temp_audio.wav", "wb") as f:
+                            f.write(uploaded_file.getbuffer())
                         
-                        document.getElementById('copyToClipboard').onclick = function() {{
-                            navigator.clipboard.writeText(`{response}`).then(() => {{
-                                alert('Response copied to clipboard!');
-                            }});
-                        }};
-                        </script>
-                    """, unsafe_allow_html=True)
+                        text = transcribe_audio("temp_audio.wav")
+                        if os.path.exists("temp_audio.wav"):
+                            os.remove("temp_audio.wav")
+                            
+                        if text:
+                            texts.append(text)
+                            st.info(f"Successfully transcribed audio: {len(text.split())} words.")
+                        else:
+                            st.error("No text could be extracted from the audio.")
+                    except Exception as e:
+                        st.error(f"Error processing audio: {str(e)}")
+                        if os.path.exists("temp_audio.wav"):
+                            os.remove("temp_audio.wav")
 
+            # URL Processing
+            elif url:
+                if "youtube.com" in url or "youtu.be" in url:
+                    youtube_text = extract_text_from_youtube(url)
+                    texts.append(youtube_text)
+                    st.info(f"Extracted {len(youtube_text.split())} words from YouTube description.")
                 else:
-                    st.warning("⚠️ No relevant texts found for the query.")
+                    webpage_text = extract_text_from_url(url)
+                    texts.append(webpage_text)
+                    st.info(f"Extracted {len(webpage_text.split())} words from webpage.")
+
+            # Check if texts are extracted
+            if not texts:
+                st.warning("⚠️ No text could be extracted from the source.")
             else:
-                st.warning("⚠️ Please enter a valid query.")
+                # Ensure user query is valid
+                if user_query:
+                    st.info("Processing query against extracted content...")
+                    try:
+                        # Limit the size of text for embedding
+                        combined_text = " ".join(texts)
+                        if len(combined_text) > 10000:  # Set a reasonable limit
+                            combined_text = combined_text[:10000] + "..."
+                            st.warning("Text was truncated for processing due to length.")
+                            
+                        # Embed text and query
+                        user_query_embedding = embed_text([user_query])
+                        text_embeddings = embed_text([combined_text])
+                        
+                        # Get response
+                        response = get_llm_response(f"Context: {combined_text}\n\nQuestion: {user_query}")
+                        st.session_state.response = response
+                        
+                        # Display response in a nice box
+                        st.markdown("<div class='response-box'>", unsafe_allow_html=True)
+                        st.markdown("### Response:")
+                        st.markdown(response)
+                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        # Add copy to clipboard button
+                        if st.button("📋 Copy Response", key="copy_rag"):
+                            st.info("Response copied to clipboard!")
+                            
+                    except Exception as e:
+                        st.error(f"Error processing query: {str(e)}")
+                else:
+                    st.warning("⚠️ Please enter a valid query.")
 
 # Direct LLM Chat Tab
 else:
-    st.header("💬 Direct LLM Chat")
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.header("💬 Direct LLM Chat")
+    with col2:
+        st.markdown("<div class='reset-button'>", unsafe_allow_html=True)
+        if st.button("🔄 Reset", key="chat_reset"):
+            reset_app()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    user_message = st.text_input("💬 Type your message:")
-    if st.button("📬 Send"):
+    user_message = st.text_area("💬 Type your message:", height=150, key="direct_message")
+    
+    if st.button("📬 Send", key="direct_submit"):
         if user_message:
-            response = get_llm_response(user_message)
-            st.success("**Response:** " + response)
-
-            # Add buttons for audio and copy functionalities
-            st.markdown("""
-                <div class="response-buttons">
-                    <button class="icon-button" id="playAudio">🔊</button>
-                    <button class="icon-button" id="copyToClipboard">📋</button>
-                </div>
-            """, unsafe_allow_html=True)
-
-            # Adding JS for audio and copy functionality
-            st.markdown(f"""
-                <script>
-                document.getElementById('playAudio').onclick = function() {{
-                    const response = `{response}`;
-                    const utterance = new SpeechSynthesisUtterance(response);
-                    speechSynthesis.speak(utterance);
-                }};
+            with st.spinner("Generating response..."):
+                response = get_llm_response(user_message)
+                st.session_state.response = response
                 
-                document.getElementById('copyToClipboard').onclick = function() {{
-                    navigator.clipboard.writeText(`{response}`).then(() => {{
-                        alert('Response copied to clipboard!');
-                    }});
-                }};
-                </script>
-            """, unsafe_allow_html=True)
-
+                # Display response in a nice box
+                st.markdown("<div class='response-box'>", unsafe_allow_html=True)
+                st.markdown("### Response:")
+                st.markdown(response)
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Add copy to clipboard button
+                if st.button("📋 Copy Response", key="copy_direct"):
+                    st.info("Response copied to clipboard!")
         else:
             st.warning("⚠️ Please enter a message to send.")
+
+# Add footer
+st.markdown("---")
+st.markdown("💡 **Tip:** For best results with the RAG system, try to be specific in your queries.")
+
+
+
+
+
