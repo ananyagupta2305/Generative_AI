@@ -4,7 +4,7 @@ import docx
 import requests
 import os
 import speech_recognition as sr
-import moviepy.editor as mp
+# import moviepy.editor as mp
 
 def extract_text_from_file(file):
     if file.type == "application/pdf":
@@ -15,8 +15,8 @@ def extract_text_from_file(file):
         return extract_text_from_txt(file)
     elif file.type in ["audio/mpeg", "audio/wav"]:
         return process_audio(file)
-    elif file.type in ["video/mp4", "video/x-msvideo"]:
-        return process_video(file)
+    # elif file.type in ["video/mp4", "video/x-msvideo"]:
+    #     return process_video(file)
     elif file.type == "text/uri-list":
         return extract_text_from_url(file)
     else:
@@ -50,19 +50,19 @@ def process_audio(file):
         except sr.RequestError:
             return "Could not request results from Google Speech Recognition service."
 
-def process_video(file):
-    # Extracting audio from video
-    video = mp.VideoFileClip(file)
-    audio_file = "temp_audio.wav"
-    video.audio.write_audiofile(audio_file)
+# def process_video(file):
+#     # Extracting audio from video
+#     video = mp.VideoFileClip(file)
+#     audio_file = "temp_audio.wav"
+#     video.audio.write_audiofile(audio_file)
 
-    # Now process the extracted audio
-    text = process_audio(audio_file)
+#     # Now process the extracted audio
+#     text = process_audio(audio_file)
 
-    # Cleanup temporary audio file
-    os.remove(audio_file)
+#     # Cleanup temporary audio file
+#     os.remove(audio_file)
 
-    return text
+#     return text
 
 def extract_text_from_url(file):
     url = file.read().decode("utf-8")
